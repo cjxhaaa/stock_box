@@ -1,0 +1,40 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Node / pnpm
+node_modules/
+**/node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+
+# Rust / Tauri
+**/target/
+
+# Tauri bundle outputs
+apps/client/src-tauri/target/
+apps/client/src-tauri/binaries/stock-box-api-sidecar
+apps/client/src-tauri/binaries/stock-box-api-sidecar.exe
+
+# API sidecar build outputs
+apps/api/build/
+apps/api/dist/
+apps/api/*.spec
+
+# Root-level sidecar leftovers from ad-hoc builds
+stock-box-api-sidecar.spec
+
