@@ -1,16 +1,98 @@
-import { spawnSync } from "node:child_process";
+﻿import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import os from "node:os";
+import path from "node:path";
+import process from "node:process";
 
-const cargoBin = `${os.homedir()}/.cargo/bin`;
+const cargoBin = path.join(os.homedir(), ".cargo", "bin");
+const pathSeparator = path.delimiter;
+const currentPath = process.env.PATH ?? "";
 const env = {
   ...process.env,
-  PATH: process.env.PATH ? `${cargoBin}:${process.env.PATH}` : cargoBin
+  PATH: currentPath.includes(cargoBin)
+    ? currentPath
+    : currentPath
+      ? `${cargoBin}${pathSeparator}${currentPath}`
+      : cargoBin
 };
+
+const isWindows = process.platform === "win32";
+const pnpmExecPath = process.env.npm_execpath;
+const pnpmHome = process.env.PNPM_HOME;
+const localAppData = process.env.LOCALAPPDATA;
+const comSpec = process.env.ComSpec || "cmd.exe";
+
+const pnpmCandidates = [];
+
+if (pnpmExecPath) {
+  pnpmCandidates.push({
+    kind: "node",
+    command: process.execPath,
+    argsPrefix: [pnpmExecPath]
+  });
+}
+
+if (isWindows) {
+  if (pnpmHome) {
+    pnpmCandidates.push({
+      kind: "cmd",
+      command: path.join(pnpmHome, "pnpm.cmd")
+    });
+  }
+  if (localAppData) {
+    pnpmCandidates.push({
+      kind: "cmd",
+      command: path.join(localAppData, "pnpm", "pnpm.cmd")
+    });
+  }
+}
+
+pnpmCandidates.push({ kind: isWindows ? "cmd" : "direct", command: "pnpm" });
+
+function spawnPnpm(args, options) {
+  let lastResult = null;
+  for (const candidate of pnpmCandidates) {
+    if ((candidate.kind === "cmd" || candidate.kind === "direct") && candidate.command !== "pnpm") {
+      if (!existsSync(candidate.command)) {
+        continue;
+      }
+    }
+
+    if (candidate.kind === "node") {
+      const result = spawnSync(candidate.command, [...candidate.argsPrefix, ...args], options);
+      if (result.status === 0) {
+        return result;
+      }
+      lastResult = result;
+      continue;
+    }
+
+    if (candidate.kind === "cmd") {
+      const result = spawnSync(
+        comSpec,
+        ["/d", "/s", "/c", candidate.command, ...args],
+        options
+      );
+      if (result.status === 0) {
+        return result;
+      }
+      lastResult = result;
+      continue;
+    }
+
+    const result = spawnSync(candidate.command, args, options);
+    if (result.status === 0) {
+      return result;
+    }
+    lastResult = result;
+  }
+
+  return lastResult ?? { status: 1 };
+}
 
 const checks = [
   ["rustc", ["--version"]],
-  ["cargo", ["--version"]],
-  ["pnpm", ["--version"]],
+  ["cargo", ["--version"]]
 ];
 
 let failed = false;
@@ -25,10 +107,18 @@ for (const [command, args] of checks) {
   }
 }
 
-const tauriInfo = spawnSync("pnpm", ["exec", "tauri", "info"], {
+const pnpmResult = spawnPnpm(["--version"], { encoding: "utf8", env });
+if (pnpmResult.status === 0) {
+  process.stdout.write(`pnpm: ${pnpmResult.stdout.trim()}\n`);
+} else {
+  failed = true;
+  process.stdout.write("pnpm: missing\n");
+}
+
+const tauriInfo = spawnPnpm(["exec", "tauri", "info"], {
   encoding: "utf8",
   env,
-  cwd: `${process.cwd()}/apps/client`
+  cwd: path.join(process.cwd(), "apps", "client")
 });
 
 if (tauriInfo.status === 0) {
