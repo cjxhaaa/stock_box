@@ -1,0 +1,9 @@
+{
+  "identifier": "default",
+  "description": "Default desktop capability set for Stock Box.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default"
+  ]
+}
